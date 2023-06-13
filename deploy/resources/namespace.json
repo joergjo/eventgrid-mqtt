@@ -1,0 +1,10 @@
+{
+    "properties": {
+        "inputSchema": "CloudEventSchemaV1_0",
+        "topicSpacesConfiguration": {
+            "state": "Enabled"
+        },
+        "isZoneRedundant": true
+    },
+    "location": "westeurope"
+}

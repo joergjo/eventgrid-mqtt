@@ -1,0 +1,4 @@
+**/*.crt
+**/*.key
+**/client*.json
+!**/client.template.json

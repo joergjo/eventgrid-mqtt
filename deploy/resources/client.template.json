@@ -1,0 +1,10 @@
+{
+    "state": "Enabled",
+    "authenticationName": "client1-authnID", 
+    "clientCertificateAuthentication": {
+        "validationScheme": "ThumbprintMatch",
+        "allowedThumbprints": [
+            "{Your client 1 certificate thumbprint}"
+        ]
+    }
+}
