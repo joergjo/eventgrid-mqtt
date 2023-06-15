@@ -71,6 +71,7 @@ func main() {
 		text := fmt.Sprintf("this is msg #%d!", i)
 		token := c.Publish(topic, 0, false, text)
 		token.Wait()
+		time.Sleep(2 * time.Second)
 	}
 
 	time.Sleep(6 * time.Second)
