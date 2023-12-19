@@ -1,4 +1,6 @@
 **/*.crt
 **/*.key
+**/*.pem
 **/client*.json
 !**/client.template.json
+**/.envrc

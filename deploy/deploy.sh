@@ -1,35 +1,45 @@
 #!/bin/bash
 
-subscription_id=$(az account show --query id -o tsv)
 resource_group=messaging-weu
 namespace=mqtt-demo
-client=client-1
-topicSpaceName=test
-permissionBinding1=permissionbinding1
-permissionBinding2=permissionbinding2
+client=client1
+topic_space=test
+perm_binding1=permissionbinding1
+perm_binding2=permissionbinding2
 
-az resource create --resource-type Microsoft.EventGrid/namespaces \
-  --id /subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.EventGrid/namespaces/${namespace} \
-  --is-full-object \
-  --api-version 2023-06-01-preview \
-  --properties @./resources/namespace.json
+thumbprint=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in ../example.org.pem | awk -F= '{gsub(/:/,"",$2); print $2}')
+# thumprint=$(openssl x509 -noout -fingerprint -sha256 -inform pem -in ../example.org.pem | awk -F= '{gsub(/:/,":",$2); sub(/^.* /,"",$0); print $2}')
 
-az resource create --resource-type Microsoft.EventGrid/namespaces/clients \
-  --id /subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.EventGrid/namespaces/${namespace}/clients/${client} \
-  --api-version 2023-06-01-preview \
-  --properties @./resources/client1.json
+az eventgrid namespace create \
+    -n $namespace \
+    -g $resource_group \
+    --topic-spaces-configuration "{state:Enabled}"
 
-az resource create --resource-type Microsoft.EventGrid/namespaces/topicSpaces \
-  --id /subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.EventGrid/namespaces/${namespace}/topicSpaces/${topicSpaceName} \
-  --api-version 2023-06-01-preview \
-  --properties @./resources/topicspace.json
+az eventgrid namespace client create \
+    -n $client \
+    -g $resource_group \
+    --namespace-name $namespace \
+    --authentication-name $client-authnID \
+    --client-certificate-authentication "{validationScheme:ThumbprintMatch,allowed-thumbprints:[$thumbprint]}"
 
-az resource create --resource-type Microsoft.EventGrid/namespaces/permissionBindings \
-  --id /subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.EventGrid/namespaces/${namespace}/permissionBindings/${permissionBinding1} \
-  --api-version 2023-06-01-preview \
-  --properties @./resources/permissionbinding1.json
+az eventgrid namespace topic-space create \
+    -g $resource_group \
+    --namespace-name $namespace \
+    -n $topic_space \
+    --topic-templates "['contosotopics/topic1']"
 
-az resource create --resource-type Microsoft.EventGrid/namespaces/permissionBindings \
-  --id /subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.EventGrid/namespaces/${namespace}/permissionBindings/${permissionBinding2} \
-  --api-version 2023-06-01-preview \
-  --properties @./resources/permissionbinding2.json
+az eventgrid namespace permission-binding create \
+    -g $resource_group \
+    --namespace-name $namespace \
+    -n $perm_binding1 \
+    --client-group-name '$all' \
+    --permission publisher \
+    --topic-space-name $topic_space
+
+az eventgrid namespace permission-binding create \
+    -g $resource_group \
+    --namespace-name $namespace \
+    -n $perm_binding2 \
+    --client-group-name '$all' \
+    --permission subscriber \
+    --topic-space-name $topic_space
