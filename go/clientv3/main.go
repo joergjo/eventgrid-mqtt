@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -89,14 +92,21 @@ func main() {
 		log.Fatal(token.Error())
 	}
 
-	for i := 0; i < 5; i++ {
-		text := fmt.Sprintf("this is msg #%d!", i)
-		token := c.Publish(topic, 0, false, text)
-		token.Wait()
-		time.Sleep(2 * time.Second)
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	time.Sleep(2 * time.Second)
+	go func() {
+		i := 0
+		for {
+			text := fmt.Sprintf("this is msg #%d!", i)
+			token := c.Publish(topic, 0, false, text)
+			token.Wait()
+			time.Sleep(2 * time.Second)
+			i++
+		}
+	}()
+
+	<-ctx.Done()
 
 	if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
 		log.Fatal(token.Error())
