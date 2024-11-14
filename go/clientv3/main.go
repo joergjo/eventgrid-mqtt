@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -50,6 +51,9 @@ func newClientOptions(fqdn string, username string, clientID string, tlsConfig *
 }
 
 func main() {
+	subscribe := flag.Bool("subscribe", false, "subscribe to the topic")
+	flag.Parse()
+
 	fqdn, ok := os.LookupEnv("MQTT_BROKER_FQDN")
 	if !ok {
 		log.Fatal("MQTT_BROKER_FQDN environment variable is not set")
@@ -88,8 +92,10 @@ func main() {
 		log.Fatal(token.Error())
 	}
 
-	if token := c.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
-		log.Fatal(token.Error())
+	if *subscribe {
+		if token := c.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
+			log.Fatal(token.Error())
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -108,8 +114,10 @@ func main() {
 
 	<-ctx.Done()
 
-	if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
-		log.Fatal(token.Error())
+	if *subscribe {
+		if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
+			log.Fatal(token.Error())
+		}
 	}
 
 	log.Println("Disconnecting...")
