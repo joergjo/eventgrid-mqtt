@@ -42,10 +42,10 @@ var connAck = await mqttClient!.ConnectAsync(new MqttClientOptionsBuilder()
     .WithTcpServer(configuration["Mqtt:BrokerFqdn"], 8883)
     .WithClientId(configuration["Mqtt:ClientId"])
     .WithCredentials(configuration["Mqtt:Username"], string.Empty)  //use client authentication name in the username
-    .WithTls(new MqttClientOptionsBuilderTlsParameters()
+    .WithTlsOptions(options => 
     {
-        UseTls = true,
-        Certificates = new X509Certificate2Collection(certificate)
+        options.UseTls(true);
+        options.WithClientCertificates([certificate]);
     })
     .Build());
 
