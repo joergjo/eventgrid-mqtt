@@ -100,6 +100,7 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	log.Println("Sending messages, press Ctrl+C to stop")
 
 	go func() {
 		i := 0
@@ -113,6 +114,7 @@ func main() {
 	}()
 
 	<-ctx.Done()
+	log.Println("Stopped sending messages")
 
 	if *subscribe {
 		if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
