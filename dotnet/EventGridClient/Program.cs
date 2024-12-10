@@ -1,22 +1,47 @@
 ﻿using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.Configuration;
 using MQTTnet;
 using MQTTnet.Client;
 
-string hostname = "mqtt-demo.westeurope-1.ts.eventgrid.azure.net";
-string clientId = "client1-session1";  //client ID can be the session identifier.  A client can have multiple sessions using username and clientId.
-string pemFile = @"./example.org.crt";  //Provide your client certificate .cer.pem file path
-string keyFile = @"./example.org.key";  //Provide your client certificate .key.pem file path
+var builder = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddUserSecrets<Program>()
+    .AddEnvironmentVariables()
+    .AddCommandLine(args);
+var configuration = builder.Build();
 
-var certificate = 
-    new X509Certificate2(X509Certificate2.CreateFromPemFile(pemFile, keyFile)
+string[] keys = ["MQTT:BrokerFqdn", "MQTT:Username", "MQTT:ClientId", "MQTT:TlsCertFile", "MQTT:TlsKeyFile"];
+var isValidConfig = true;
+
+foreach (var key in keys)
+{
+    var setting = configuration[key];
+    if (setting is null or { Length: 0 })
+    {
+        Console.WriteLine($"Please configure the {key} setting in appsettings.json or via user secrets or environment variables.");
+        isValidConfig = false;
+    }
+}
+
+if (!isValidConfig)
+{
+    Console.WriteLine("Exiting due to missing configuration.");
+    return;
+}
+
+var certificate =
+    new X509Certificate2(X509Certificate2.CreateFromPemFile(
+        configuration["Mqtt:TlsCertFile"]!,
+        configuration["Mqtt:TlsKeyFile"])
         .Export(X509ContentType.Pkcs12));
 
 var mqttClient = new MqttFactory().CreateMqttClient();
 
 var connAck = await mqttClient!.ConnectAsync(new MqttClientOptionsBuilder()
-    .WithTcpServer(hostname, 8883)
-    .WithClientId(clientId)
-    .WithCredentials("client1-authnID", "")  //use client authentication name in the username
+    .WithTcpServer(configuration["Mqtt:BrokerFqdn"], 8883)
+    .WithClientId(configuration["Mqtt:ClientId"])
+    .WithCredentials(configuration["Mqtt:Username"], string.Empty)  //use client authentication name in the username
     .WithTls(new MqttClientOptionsBuilderTlsParameters()
     {
         UseTls = true,
@@ -24,14 +49,19 @@ var connAck = await mqttClient!.ConnectAsync(new MqttClientOptionsBuilder()
     })
     .Build());
 
-Console.WriteLine($"Client Connected: {mqttClient.IsConnected} with CONNACK: {connAck.ResultCode}");
+Console.WriteLine($"Client connected: {mqttClient.IsConnected} with CONNACK: {connAck.ResultCode}");
 
-mqttClient.ApplicationMessageReceivedAsync += 
+mqttClient.ApplicationMessageReceivedAsync +=
     async m => await Console.Out.WriteAsync($"Received message on topic: '{m.ApplicationMessage.Topic}' with content: '{m.ApplicationMessage.ConvertPayloadToString()}'\n\n");
 
-var suback = await mqttClient.SubscribeAsync("contosotopics/topic1");
-suback.Items.ToList().ForEach(s => Console.WriteLine($"subscribed to '{s.TopicFilter.Topic}' with '{s.ResultCode}'"));
+if (configuration.GetValue("Subscribe", false))
+{
+    await mqttClient.SubscribeAsync("contosotopics/topic1", MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce);
+    var suback = await mqttClient.SubscribeAsync("contosotopics/topic1");
+    suback.Items.ToList().ForEach(s => Console.WriteLine($"subscribed to '{s.TopicFilter.Topic}' with '{s.ResultCode}'"));
+}
 
+Console.WriteLine("Sending messages");
 while (true)
 {
     var puback = await mqttClient.PublishStringAsync("contosotopics/topic1", $"Hello world at {DateTimeOffset.UtcNow:o}!");
