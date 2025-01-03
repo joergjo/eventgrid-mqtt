@@ -52,7 +52,12 @@ func newClientOptions(fqdn string, username string, clientID string, tlsConfig *
 
 func main() {
 	subscribe := flag.Bool("subscribe", false, "subscribe to the topic")
+	publish := flag.Bool("publish", true, "publish messages to the topic")
 	flag.Parse()
+
+	if !*subscribe && !*publish {
+		log.Fatal("At least one of -subscribe or -publish must be set")
+	}
 
 	fqdn, ok := os.LookupEnv("MQTT_BROKER_FQDN")
 	if !ok {
@@ -92,29 +97,32 @@ func main() {
 		log.Fatal(token.Error())
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	if *subscribe {
+		fmt.Printf("Subscribing to topic %s. Press Ctrl+C to exit.", topic)
 		if token := c.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
 			log.Fatal(token.Error())
 		}
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	log.Println("Sending messages, press Ctrl+C to stop")
-
-	go func() {
-		i := 0
-		for {
-			text := fmt.Sprintf("this is msg #%d!", i)
-			token := c.Publish(topic, 0, false, text)
-			token.Wait()
-			time.Sleep(2 * time.Second)
-			i++
-		}
-	}()
+	if *publish {
+		go func() {
+			fmt.Println("Sending messages. Press Ctrl+C to exit.")
+			i := 0
+			for {
+				text := fmt.Sprintf("this is msg #%d!", i)
+				token := c.Publish(topic, 0, false, text)
+				token.Wait()
+				time.Sleep(2 * time.Second)
+				i++
+			}
+		}()
+	}
 
 	<-ctx.Done()
-	log.Println("Stopped sending messages")
+	fmt.Println("Stopped...")
 
 	if *subscribe {
 		if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
@@ -122,7 +130,7 @@ func main() {
 		}
 	}
 
-	log.Println("Disconnecting...")
+	fmt.Println("Disconnecting...")
 	c.Disconnect(250)
-	log.Println("Done")
+	fmt.Println("Done")
 }
