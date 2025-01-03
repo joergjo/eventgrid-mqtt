@@ -29,13 +29,14 @@ func newTLSConfig(certFile, keyFile string) (*tls.Config, error) {
 		return nil, err
 	}
 	return &tls.Config{
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: false,
 		Certificates:       []tls.Certificate{cert},
+		ClientAuth:         tls.RequireAndVerifyClientCert,
 	}, nil
 }
 
 func newClientOptions(fqdn string, username string, clientID string, tlsConfig *tls.Config) *mqtt.ClientOptions {
-	uri := fmt.Sprintf("ssl://%s:8883", fqdn)
+	uri := fmt.Sprintf("tls://%s:8883", fqdn)
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(uri)
 	opts.SetClientID(clientID)
