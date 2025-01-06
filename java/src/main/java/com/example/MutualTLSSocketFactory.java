@@ -14,6 +14,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 public final class MutualTLSSocketFactory {
+
     private MutualTLSSocketFactory() {
     }
 
@@ -33,4 +34,5 @@ public final class MutualTLSSocketFactory {
             throw new RuntimeException("Failed to create socket factory", e);
         }
     }
+    
 }
