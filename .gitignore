@@ -1,6 +1,7 @@
 **/*.crt
 **/*.key
 **/*.pem
+**/*.p12
 **/client*.json
 !**/client.template.json
 **/.envrc
