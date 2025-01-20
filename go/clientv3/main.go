@@ -19,8 +19,8 @@ const (
 )
 
 func handler(client mqtt.Client, msg mqtt.Message) {
-	log.Printf("Topic: %s", msg.Topic())
-	log.Printf("Message: %s", msg.Payload())
+	fmt.Printf("Topic: %s\n", msg.Topic())
+	fmt.Printf("Message: %s\n", msg.Payload())
 }
 
 func newTLSConfig(certFile, keyFile string) (*tls.Config, error) {
@@ -45,19 +45,25 @@ func newClientOptions(fqdn string, username string, clientID string, tlsConfig *
 	opts.SetPassword("") // we use a client certificate instead
 	opts.SetTLSConfig(tlsConfig)
 	opts.SetProtocolVersion(v311)
-	opts.OnConnect = func(c mqtt.Client) {
-		log.Printf("Connected to %s", uri)
-	}
+	opts.SetCleanSession(false)
+	opts.SetOnConnectHandler(func(c mqtt.Client) {
+		fmt.Printf("Connected to %s\n", uri)
+	})
 	return opts
 }
 
 func main() {
 	subscribe := flag.Bool("subscribe", false, "subscribe to the topic")
 	publish := flag.Bool("publish", true, "publish messages to the topic")
+	message := flag.String("message", "", "message to publish")
 	flag.Parse()
 
 	if !*subscribe && !*publish {
 		log.Fatal("At least one of -subscribe or -publish must be set")
+	}
+
+	if *publish && *message == "" {
+		log.Fatal("The -message flag must be set when -publish is set")
 	}
 
 	fqdn, ok := os.LookupEnv("MQTT_BROKER_FQDN")
@@ -102,8 +108,8 @@ func main() {
 	defer stop()
 
 	if *subscribe {
-		fmt.Printf("Subscribing to topic %s. Press Ctrl+C to exit.", topic)
-		if token := c.Subscribe(topic, 0, nil); token.Wait() && token.Error() != nil {
+		fmt.Printf("Subscribing to topic %s. Press Ctrl+C to exit.\n", topic)
+		if token := c.Subscribe(topic, 1, nil); token.Wait() && token.Error() != nil {
 			log.Fatal(token.Error())
 		}
 	}
@@ -111,10 +117,10 @@ func main() {
 	if *publish {
 		go func() {
 			fmt.Println("Sending messages. Press Ctrl+C to exit.")
-			i := 0
+			i := 1
 			for {
-				text := fmt.Sprintf("this is msg #%d!", i)
-				token := c.Publish(topic, 0, false, text)
+				text := fmt.Sprintf("%s #%d!", *message, i)
+				token := c.Publish(topic, 1, false, text)
 				token.Wait()
 				time.Sleep(2 * time.Second)
 				i++
