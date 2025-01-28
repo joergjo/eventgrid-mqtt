@@ -33,6 +33,7 @@ public class EventGridMqttSample {
         options.addOption("u", "username", true, "Username");
         options.addOption("t", "topic", true, "Topic");
         options.addOption("m", "message", true, "Message");
+        options.addOption("cs", "cleanSession", false, "Clean session");
         options.addOption("cc", "clientCertPath", true, "Client certificate path (PKCS12)");
         options.addOption("pw", "clientCertPassword", true, "Client certificate password");
 
@@ -47,6 +48,7 @@ public class EventGridMqttSample {
         clientOptions.setClientId(MqttClient.generateClientId());
         clientOptions.setPassword("");
         clientOptions.setPort(8883);
+        clientOptions.setCleanSession(false);
 
         CommandLineParser parser = new DefaultParser();
         try {
@@ -66,6 +68,9 @@ public class EventGridMqttSample {
             }
             if (cmd.hasOption("t")) {
                 clientOptions.setTopic(cmd.getOptionValue("t"));
+            }
+            if (cmd.hasOption("cs")) {
+                clientOptions.setCleanSession(true);
             }
             if (cmd.hasOption("cc")) {
                 clientOptions.setClientCertPath(cmd.getOptionValue("cc"));
@@ -135,8 +140,14 @@ public class EventGridMqttSample {
             options.setPassword(clientOptions.getPassword().toCharArray());
             options.setSocketFactory(MutualTLSSocketFactory.create(clientOptions.getClientCertPath(),
                     clientOptions.getClientCertPassword()));
+            options.setCleanSession(clientOptions.isCleanSession());
 
-            System.out.println("Connecting to broker: " + uri);
+            System.out.println(MessageFormat.format(
+                "Connecting to broker {0} as user {1} with client ID {2} [clean session {3}]", 
+                uri, 
+                clientOptions.getUsername(), 
+                clientOptions.getClientId(),
+                clientOptions.isCleanSession()));
             client.connect(options);
 
             if (!client.isConnected()) {
@@ -172,10 +183,11 @@ public class EventGridMqttSample {
                 System.out.println("Publishing to topic: " + topic);
                 new Thread(() -> {
                     try {
-                        while (isRunning) {
-                            MqttMessage msg = new MqttMessage(message.getBytes(StandardCharsets.UTF_8));
-                            msg.setQos(1);
-                            client.publish(topic, msg);
+                        for (int i = 1; isRunning; i++) {
+                            String payload = String.format("%s #%d", message, i);
+                            MqttMessage mqttMessage = new MqttMessage(payload.getBytes(StandardCharsets.UTF_8));
+                            mqttMessage.setQos(1);
+                            client.publish(topic, mqttMessage);
                             Thread.sleep(2000);
                         }
                     } catch (Exception e) {

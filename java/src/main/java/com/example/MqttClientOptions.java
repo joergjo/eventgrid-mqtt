@@ -8,6 +8,7 @@ public class MqttClientOptions {
     private String username;
     private String password;
     private String topic;
+    private boolean cleanSession;
     private String clientCertPath;
     private String clientCertPassword;
 
@@ -57,6 +58,14 @@ public class MqttClientOptions {
 
     public void setTopic(String topic) {
         this.topic = topic;
+    }
+
+    public boolean isCleanSession() {
+        return cleanSession;
+    }
+
+    public void setCleanSession(boolean cleanSession) {
+        this.cleanSession = cleanSession;
     }
 
     public String getClientCertPath() {
