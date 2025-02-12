@@ -49,6 +49,7 @@ func newClientOptions(fqdn string, username string, clientID string, tlsConfig *
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
 		fmt.Printf("Connected to %s\n", uri)
 	})
+	opts.SetResumeSubs(true)
 	return opts
 }
 
@@ -129,13 +130,6 @@ func main() {
 	}
 
 	<-ctx.Done()
-	fmt.Println("Stopped...")
-
-	if *subscribe {
-		if token := c.Unsubscribe(topic); token.Wait() && token.Error() != nil {
-			log.Fatal(token.Error())
-		}
-	}
 
 	fmt.Println("Disconnecting...")
 	c.Disconnect(250)
