@@ -6,11 +6,14 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.eclipse.paho.client.mqttv3.*;
+import org.eclipse.paho.mqttv5.client.*;
+import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
+import org.eclipse.paho.mqttv5.common.MqttException;
+import org.eclipse.paho.mqttv5.common.MqttMessage;
 
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 public class EventGridMqttSample {
@@ -44,8 +47,11 @@ public class EventGridMqttSample {
         boolean isPublisher = false;
         boolean isSubscriber = false;
 
+        long pid = Thread.currentThread().getId();
+		String defaultClientId = "mqtt-client-" + pid;
+
         MqttClientOptions clientOptions = new MqttClientOptions();
-        clientOptions.setClientId(MqttClient.generateClientId());
+        clientOptions.setClientId(defaultClientId);
         clientOptions.setPassword("");
         clientOptions.setPort(8883);
         clientOptions.setCleanSession(false);
@@ -89,7 +95,7 @@ public class EventGridMqttSample {
             }
         } catch (ParseException e) {
             System.err.println("Error parsing command line arguments: " + e.getMessage());
-            e.printStackTrace();
+            e.printStackTrace(System.err);
             System.exit(1);
         }
 
@@ -105,67 +111,43 @@ public class EventGridMqttSample {
             final boolean isSubscriber) {
         final MqttClientWrapper clientWrapper = new MqttClientWrapper();
         final CountDownLatch latch = new CountDownLatch(1);
+        final PrintStream outStream = System.out;
 
         try {
             String uri = String.format("ssl://%s:%d", clientOptions.getBroker(), clientOptions.getPort());
-            MqttClient client = new MqttClient(uri, clientOptions.getClientId());
+
+            MemoryPersistence persistence = new MemoryPersistence();
+            MqttAsyncClient client = new MqttAsyncClient(uri, clientOptions.getClientId(), persistence);
+            client.setCallback(new DefaultMqttCallback(outStream));
             clientWrapper.setClient(client);
-            client.setCallback(new MqttCallback() {
 
-                @Override
-                public void connectionLost(Throwable cause) {
-                    System.out.println(MessageFormat.format("Connection lost. Cause: {0}", cause));
-                }
-
-                @Override
-                public void messageArrived(String topic, MqttMessage message) throws Exception {
-                    System.out.println(MessageFormat.format("Callback: received message from topic {0}: {1}",
-                            topic, message.toString()));
-                }
-
-                @Override
-                public void deliveryComplete(IMqttDeliveryToken token) {
-                    try {
-                        System.out.println(MessageFormat.format("Callback: published message to topics {0}",
-                                Arrays.asList(token.getTopics())));
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-
-            });
-
-            MqttConnectOptions options = new MqttConnectOptions();
+            MqttConnectionOptions options = new MqttConnectionOptions();
             options.setUserName(clientOptions.getUsername());
-            options.setPassword(clientOptions.getPassword().toCharArray());
+            options.setPassword(clientOptions.getPassword().getBytes(StandardCharsets.UTF_8));
             options.setSocketFactory(MutualTLSSocketFactory.create(clientOptions.getClientCertPath(),
                     clientOptions.getClientCertPassword()));
-            options.setCleanSession(clientOptions.isCleanSession());
+            options.setCleanStart(clientOptions.isCleanSession());
 
-            System.out.println(MessageFormat.format(
+            outStream.println(MessageFormat.format(
                 "Connecting to broker {0} as user {1} with client ID {2} [clean session {3}]", 
                 uri, 
                 clientOptions.getUsername(), 
                 clientOptions.getClientId(),
                 clientOptions.isCleanSession()));
-            client.connect(options);
-
-            if (!client.isConnected()) {
-                System.err.println("Failed to connect to broker: " + uri);
-                return;
-            }
-            System.out.println("Connected to broker: " + uri);
+            IMqttToken connectToken = client.connect(options);
+            connectToken.waitForCompletion();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                MqttClient wrappedClient = clientWrapper.getClient();
+                MqttAsyncClient wrappedClient = clientWrapper.getClient();
                 if (wrappedClient != null && wrappedClient.isConnected()) {
                     try {
-                        System.out.println("Disconnecting from broker due to shutdown signal...");
+                        outStream.println("Disconnecting from broker due to shutdown signal...");
                         isRunning = false;
-                        wrappedClient.disconnect();
-                        System.out.println("Disconnected from broker.");
+                        IMqttToken disconnectToken = wrappedClient.disconnect();
+                        disconnectToken.waitForCompletion();
+                        outStream.println("Disconnected from broker.");
                     } catch (MqttException e) {
-                        e.printStackTrace();
+                        e.printStackTrace(System.err);
                     } finally {
                         latch.countDown();
                     }
@@ -175,11 +157,11 @@ public class EventGridMqttSample {
             final String topic = clientOptions.getTopic();
 
             if (isSubscriber) {
-                client.subscribe(topic, 1);
+                IMqttToken subscriptionToken = client.subscribe(topic, 1);
                 System.out.println("Subscribed to topic: " + topic);
-            }
-
-            if (isPublisher) {
+                subscriptionToken.waitForCompletion();
+                System.out.println("Subscription complete.");
+            } else if (isPublisher) {
                 System.out.println("Publishing to topic: " + topic);
                 new Thread(() -> {
                     try {
@@ -187,11 +169,12 @@ public class EventGridMqttSample {
                             String payload = String.format("%s #%d", message, i);
                             MqttMessage mqttMessage = new MqttMessage(payload.getBytes(StandardCharsets.UTF_8));
                             mqttMessage.setQos(1);
-                            client.publish(topic, mqttMessage);
+                            IMqttToken deliveryToken = client.publish(topic, mqttMessage);
+                            deliveryToken.waitForCompletion();
                             Thread.sleep(2000);
                         }
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        e.printStackTrace(System.err);
                     }
                 }).start();
             }
@@ -199,14 +182,14 @@ public class EventGridMqttSample {
             // Block execution until a Signal is received
             latch.await();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.err);
         } finally {
-            MqttClient client = clientWrapper.getClient();
+            MqttAsyncClient client = clientWrapper.getClient();
             if (client != null) {
                 try {
                     client.close();
                 } catch (MqttException e) {
-                    e.printStackTrace();
+                    e.printStackTrace(System.err);
                 }
             }
         }

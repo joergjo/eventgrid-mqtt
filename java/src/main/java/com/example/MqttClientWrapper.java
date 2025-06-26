@@ -1,16 +1,16 @@
 package com.example;
 
-import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.mqttv5.client.MqttAsyncClient;;
 
 public class MqttClientWrapper {
 
-    private MqttClient client;
+    private MqttAsyncClient client;
 
-    public MqttClient getClient() {
+    public MqttAsyncClient getClient() {
         return client;
     }
 
-    public void setClient(MqttClient client) {
+    public void setClient(MqttAsyncClient client) {
         this.client = client;
     }
 
