@@ -54,7 +54,8 @@ public class DefaultMqttCallback implements MqttCallback {
 
     @Override
     public void authPacketArrived(int reasonCode, MqttProperties properties) {
-        stream.println(MessageFormat.format("[UNSUPPORTD] Auth packet arrived with reason code {0} and method {1}", reasonCode, properties.getAuthenticationMethod()));
+        stream.println(MessageFormat.format("[UNSUPPORTD] Auth packet arrived with reason code {0} and method {1}",
+                reasonCode, properties.getAuthenticationMethod()));
     }
 
 }

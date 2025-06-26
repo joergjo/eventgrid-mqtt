@@ -11,6 +11,7 @@ public class MqttClientOptions {
     private boolean cleanSession;
     private String clientCertPath;
     private String clientCertPassword;
+    private boolean useEntraID;
 
     public String getBroker() {
         return broker;
@@ -84,12 +85,24 @@ public class MqttClientOptions {
         this.clientCertPassword = clientCertPassword;
     }
 
+    public boolean isUseEntraID() {
+        return useEntraID;
+    }
+
+    public void setUseEntraID(boolean useEntraID) {
+        this.useEntraID = useEntraID;
+    }
+
     public boolean validate() {
-        return broker != null && 
-            clientId != null && 
-            username != null && 
-            topic != null && 
-            clientCertPath != null && 
-            clientCertPassword != null;
+        boolean isValid = broker != null &&
+                clientId != null &&
+                username != null &&
+                topic != null;
+        if (!useEntraID) {
+            isValid = isValid &&
+                    clientCertPath != null &&
+                    clientCertPassword != null;
+        }
+        return isValid;
     }
 }

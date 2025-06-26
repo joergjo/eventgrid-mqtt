@@ -11,6 +11,11 @@ import org.eclipse.paho.mqttv5.client.persist.MemoryPersistence;
 import org.eclipse.paho.mqttv5.common.MqttException;
 import org.eclipse.paho.mqttv5.common.MqttMessage;
 
+import com.azure.core.credential.AccessToken;
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.DefaultAzureCredential;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
@@ -37,6 +42,7 @@ public class EventGridMqttSample {
         options.addOption("t", "topic", true, "Topic");
         options.addOption("m", "message", true, "Message");
         options.addOption("cs", "cleanSession", false, "Clean session");
+        options.addOption("aad", "useEntraIDAuth", false, "Authenticate with Ebtra ID");
         options.addOption("cc", "clientCertPath", true, "Client certificate path (PKCS12)");
         options.addOption("pw", "clientCertPassword", true, "Client certificate password");
 
@@ -48,7 +54,7 @@ public class EventGridMqttSample {
         boolean isSubscriber = false;
 
         long pid = Thread.currentThread().getId();
-		String defaultClientId = "mqtt-client-" + pid;
+        String defaultClientId = "mqtt-client-" + pid;
 
         MqttClientOptions clientOptions = new MqttClientOptions();
         clientOptions.setClientId(defaultClientId);
@@ -83,6 +89,9 @@ public class EventGridMqttSample {
             }
             if (cmd.hasOption("pw")) {
                 clientOptions.setClientCertPassword(cmd.getOptionValue("pw"));
+            }
+            if (cmd.hasOption("aad")) {
+                clientOptions.setUseEntraID(true);
             }
             if (cmd.hasOption("m")) {
                 message = cmd.getOptionValue("m");
@@ -122,18 +131,29 @@ public class EventGridMqttSample {
             clientWrapper.setClient(client);
 
             MqttConnectionOptions options = new MqttConnectionOptions();
-            options.setUserName(clientOptions.getUsername());
-            options.setPassword(clientOptions.getPassword().getBytes(StandardCharsets.UTF_8));
-            options.setSocketFactory(MutualTLSSocketFactory.create(clientOptions.getClientCertPath(),
-                    clientOptions.getClientCertPassword()));
+            if (clientOptions.isUseEntraID()) {
+                outStream.println("Using Azure Entra ID for authentication...");
+                DefaultAzureCredential credential = new DefaultAzureCredentialBuilder().build();
+                TokenRequestContext tokenRequestContext = new TokenRequestContext();
+                tokenRequestContext.addScopes("https://eventgrid.azure.net/.default");
+                AccessToken token = credential.getTokenSync(tokenRequestContext);
+                options.setAuthMethod("OAUTH2-JWT");
+                options.setAuthData(token.getToken().getBytes(StandardCharsets.UTF_8));
+            } else {
+                outStream.println("Using client certificate for authentication...");
+                options.setUserName(clientOptions.getUsername());
+                options.setSocketFactory(MutualTLSSocketFactory.create(clientOptions.getClientCertPath(),
+                        clientOptions.getClientCertPassword()));
+            }
+
             options.setCleanStart(clientOptions.isCleanSession());
 
             outStream.println(MessageFormat.format(
-                "Connecting to broker {0} as user {1} with client ID {2} [clean session {3}]", 
-                uri, 
-                clientOptions.getUsername(), 
-                clientOptions.getClientId(),
-                clientOptions.isCleanSession()));
+                    "Connecting to broker {0} as user {1} with client ID {2} [clean session {3}]",
+                    uri,
+                    clientOptions.getUsername(),
+                    clientOptions.getClientId(),
+                    clientOptions.isCleanSession()));
             IMqttToken connectToken = client.connect(options);
             connectToken.waitForCompletion();
 
