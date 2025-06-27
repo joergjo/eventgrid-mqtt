@@ -335,6 +335,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Azure Event Grid MQTT Documentation](https://learn.microsoft.com/en-us/azure/event-grid/mqtt-overview)
 - [MQTT 3.1.1 Protocol Specification](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)
-- [MQTT 5.0 Protocl Specification](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+- [MQTT 5.0 Protocol Specification](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
 - [Step CLI Documentation](https://smallstep.com/docs/step-cli/)
 - [Eclipse Paho MQTT Clients](https://www.eclipse.org/paho/)
