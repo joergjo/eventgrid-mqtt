@@ -1,6 +1,6 @@
 # Azure Event Grid MQTT Broker Sample Clients
 
-This repository contains sample MQTT clients written in **Java**, **Go**, and **C#** that can be used as consumers and producers for Azure Event Grid MQTT broker. The samples demonstrate client certificate authentication and MQTT protocol usage with Azure Event Grid uisng MQTT **v3.1.1**.
+This repository contains sample MQTT clients written in **Java**, **Go**, and **C#** that can be used as consumers and producers for Azure Event Grid MQTT broker. The samples demonstrate client certificate authentication and MQTT protocol usage with Azure Event Grid using both **MQTT v3.1.1** and **MQTT v5** (with OAuth2/Entra ID authentication).
 
 ## Overview
 
@@ -22,9 +22,9 @@ This repository assumes you have:
 ```
 ├── dotnet/                    # C# (.NET) MQTT client implementation
 │   └── EventGridClient/
-├── java/                      # Java MQTT client implementation
-│   ├── src/main/java/com/example/
-│   └── pom.xml
+├── java/                      # Java MQTT client implementations
+│   ├── mqttv3/
+│   └── mqttv5/
 ├── go/                        # Go MQTT client implementation
 │   └── clientv3/
 ├── scripts/                   # Certificate generation scripts
@@ -96,7 +96,7 @@ The .NET client supports multiple configuration sources:
 ```json
 {
   "MQTT": {
-    "BrokerFqdn": "your-namespace.region-1.eventgrid.azure.net",
+    "BrokerFqdn": "your-namespace.region.eventgrid.azure.net",
     "Topic": "your/topic/path",
     "Username": "client1-authn-ID",
     "ClientId": "client1-authn-ID",
@@ -114,44 +114,119 @@ cd dotnet/EventGridClient/
 dotnet run
 ```
 
-### Java Client
+### Java Clients
 
-Located in `java/`, this implementation uses:
-- **Java version**: 8
+Located in `java/`, this repository provides **two Java implementations** demonstrating different MQTT versions and authentication methods:
+
+#### MQTT v3.1.1 Client (`java/mqttv3/`)
+- **Java version**: 8+
 - **Build Tool**: Maven
 - **MQTT Library**: Eclipse Paho MQTT Java Client
+- **Authentication**: Client certificate authentication
+- **Protocol**: MQTT v3.1.1
 
-#### Building the Java Client
+#### MQTT v5 Client (`java/mqttv5/`)
+- **Java version**: 8+
+- **Build Tool**: Maven  
+- **MQTT Library**: Eclipse Paho MQTT Java Client
+- **Authentication**: 
+  - Client certificate authentication (same as MQTT v3.1.1)
+  - OAuth2 with Microsoft Entra ID (Azure Active Directory)
+- **Protocol**: MQTT v5
+- **Features**: Showcases both certificate-based and token-based authentication with RBAC as described in the [Azure Event Grid MQTT Client Microsoft Entra Token and RBAC documentation](https://learn.microsoft.com/en-us/azure/event-grid/mqtt-client-microsoft-entra-token-and-rbac)
+
+#### Building the Java Clients
 
 ```bash
-cd java/
+# Build MQTT v3.1.1 client
+cd java/mqttv3/
+mvn clean package
+
+# Build MQTT v5 client  
+cd java/mqttv5/
 mvn clean package
 ```
 
-#### Running the Java Client
+#### Running the MQTT v3.1.1 Client (Certificate Authentication)
 
 ```bash
+cd java/mqttv3/
 # Subscribe to topic
 java -jar target/EventGridMqttSample-jar-with-dependencies.jar \
-  -b your-namespace.region-1.eventgrid.azure.net \
-  -u client1-authn-ID \
-  -id client1-authn-ID \
+  -b your-namespace.region.eventgrid.azure.net \
+  -u client2-authn-ID \
+  -id client2-authn-ID \
   -t "your/topic/path" \
-  -cc client1-authn-ID.p12 \
+  -cc client2-authn-ID.p12 \
   -pw mypassword \
   -sub
 
 # Publish to topic
 java -jar target/EventGridMqttSample-jar-with-dependencies.jar \
-  -b your-namespace.region-1.eventgrid.azure.net \
+  -b your-namespace.region.eventgrid.azure.net \
   -u client1-authn-ID \
   -id client1-authn-ID \
   -t "your/topic/path" \
-  -m "Hello from Java!" \
+  -m "Hello from Java MQTT v3.1.1!" \
   -cc client1-authn-ID.p12 \
   -pw mypassword \
   -pub
 ```
+
+#### Running the MQTT v5 Client (Certificate Authentication)
+
+```bash
+cd java/mqttv5/
+# Subscribe to topic using certificate authentication
+java -jar target/EventGridMqttSample-jar-with-dependencies.jar \
+  -b your-namespace.region.eventgrid.azure.net \
+  -u client2-authn-ID \
+  -id client2-authn-ID \
+  -t "your/topic/path" \
+  -cc client2-authn-ID.p12 \
+  -pw mypassword \
+  -sub
+
+# Publish to topic using certificate authentication
+java -jar target/EventGridMqttSample-jar-with-dependencies.jar \
+  -b your-namespace.region.eventgrid.azure.net \
+  -u client1-authn-ID \
+  -id client1-authn-ID \
+  -t "your/topic/path" \
+  -m "Hello from Java MQTT v5 with certificates!" \
+  -cc client1-authn-ID.p12 \
+  -pw mypassword \
+  -pub
+```
+
+#### Running the MQTT v5 Client (OAuth2/Entra ID Authentication)
+
+```bash
+cd java/mqttv5/
+# Subscribe to topic using Entra ID authentication
+java -jar target/EventGridMqttSample-jar-with-dependencies.jar \
+  -b your-namespace.region.eventgrid.azure.net \
+  -t "your/topic/path" \
+  -id client1-authn-ID \
+  -aad \
+  -sub
+
+# Publish to topic using Entra ID authentication
+java -jar target/EventGridMqttSample-jar-with-dependencies.jar \
+  -b your-namespace.region.eventgrid.azure.net \
+  -t "your/topic/path" \
+  -m "Hello from Java MQTT v5 with OAuth2!" \
+  -id client2-authn-ID \
+  -aad \
+  -pub
+```
+
+**Note**: The `-aad` flag enables Azure Active Directory (Entra ID) authentication using the DefaultAzureCredential class from azure-identity. This automatically discovers credentials from various sources including:
+- Environment variables (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)
+- Managed Identity (when running on Azure)
+- Azure CLI authentication
+- Visual Studio Code authentication
+- IntelliJ authentication
 
 ### Go Client
 
@@ -170,7 +245,7 @@ go build -o mqtt-client
 
 ```bash
 ./mqtt-client \
-  -fqdn your-namespace.region-1.eventgrid.azure.net \
+  -fqdn your-namespace.region.eventgrid.azure.net \
   -username client1-authn-ID \
   -clientid client1-authn-ID \
   -topic "your/topic/path" \
@@ -182,16 +257,16 @@ go build -o mqtt-client
 
 All clients support these common configuration parameters:
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| **Broker FQDN** | Event Grid namespace endpoint | `myns.region-1.eventgrid.azure.net` |
-| **Port** | MQTT port (always 8883 for TLS) | `8883` |
-| **Username** | Client authentication name | `client1-authn-ID` |
-| **Client ID** | MQTT client identifier | `client1-authn-ID` |
-| **Topic** | MQTT topic path | `sensors/temperature` |
-| **Certificate** | Client certificate file path | `client1-authn-ID.pem` |
-| **Private Key** | Client private key file path | `client1-authn-ID.key` |
-| **Clean Session** | Start with clean session | `true` or `false` |
+| Parameter | Description | Publisher Example | Subscriber Example |
+|-----------|-------------|-------------------|-------------------|
+| **Broker FQDN** | Event Grid namespace endpoint | `myns.region.eventgrid.azure.net` | `myns.region.eventgrid.azure.net` |
+| **Port** | MQTT port (always 8883 for TLS) | `8883` | `8883` |
+| **Username** | Client authentication name | `client1-authn-ID` | `client2-authn-ID` |
+| **Client ID** | MQTT client identifier | `client1-authn-ID` | `client2-authn-ID` |
+| **Topic** | MQTT topic path | `sensors/temperature` | `sensors/temperature` |
+| **Certificate** | Client certificate file path | `client1-authn-ID.pem` | `client2-authn-ID.pem` |
+| **Private Key** | Client private key file path | `client1-authn-ID.key` | `client2-authn-ID.key` |
+| **Clean Session** | Start with clean session | `true` or `false` | `true` or `false` |
 
 ## Azure Event Grid Configuration
 
@@ -244,6 +319,10 @@ Configure topic spaces and set appropriate permissions for your clients to publi
 The `infra/` directory contains Bicep templates for deploying Azure Event Grid resources:
 
 ```bash
+export AZ_LOCATION='northeurope'
+export AZ_NAME_PREFIX='my-iot-demo'
+export AZ_RESOURCE_GROUP='my-iot-rg'
+
 cd infra/
 ./deploy.sh
 ```
@@ -256,5 +335,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Azure Event Grid MQTT Documentation](https://learn.microsoft.com/en-us/azure/event-grid/mqtt-overview)
 - [MQTT 3.1.1 Protocol Specification](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html)
+- [MQTT 5.0 Protocl Specification](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
 - [Step CLI Documentation](https://smallstep.com/docs/step-cli/)
 - [Eclipse Paho MQTT Clients](https://www.eclipse.org/paho/)
